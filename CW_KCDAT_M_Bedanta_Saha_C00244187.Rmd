@@ -1,0 +1,246 @@
+---
+title: "Analysis of Nobel Prize Winners from 1901-2016"
+author: "BedantaSaha_c00244187"
+date: "3 January 2019"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Introduction: 
+
+"The Nobel Prize is a set of annual international awards bestowed in several categories by Swedish and Norwegian institutions in recognition of academic, cultural, or scientific advances." (En.wikipedia.org,2019) 
+The Swedish scientist Alfred Nobel established the Nobel prizes on five fields Literature,Chemistry, Peace,Medicine and Physics in 1895. The prizes on these five fields were started awarding from 1901 and later on from 1968 Sweden's central bank established Serving Riksbank prize in Economics science in the memory of Alfred Nobel and started awarding that from 1969. Nobel prizes are recognised as the most prestigious awards in the respective fields. 
+
+## DataSet and Research Question:
+
+Here a dataset "archive.csv", which contains the details of the Nobel Laureates from 1901-2016, has been taken from google kaggle. (Kaggle.com, 2019)
+In this story the analyses and the visualisations are focus on the trend analysis of the Nobel laureates according to their Gender, age and country of Birth.
+
+###Libraries 
+
+The following libraries have been installed and loaded to execute the codes. 
+
+```{r,message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(ggthemes)
+library(RColorBrewer)
+library(kableExtra)
+library(ggrepel)
+library(scales)
+library(gridExtra)
+library(tidytext)
+library(wordcloud)
+library(lubridate)
+library(igraph)
+library(ggraph)
+```
+
+###Importing File and getting a glimp of the data
+
+Next the data(csv file) has been imported to start the work. 
+
+```{r,message=FALSE, warning=FALSE}
+nobel<-read.csv("C:/Users/BEDANTA/Desktop/Study/Data Visualization/StoryTelling/archive.csv")
+
+```
+
+### Basic data handling before starting the analysis 
+
+There is no raw dataset which is intitally complete to do some research or analysis with it.Likewise here the dataset does not have the age of the the laureates when they won the Nobel prizes. So two new coloumns have been mutated (added) deriving from the data of column Birth Date and Year (Nobel winning year)
+
+```{r,message=FALSE, warning=FALSE}
+nobel$Birth.Date <- as.Date(nobel$Birth.Date, format="%Y-%m-%d")
+nobel<-nobel%>% mutate(BirthYear= as.numeric(format(Birth.Date,'%Y')))
+nobel <- nobel%>% mutate(Age=Year-BirthYear)
+View(nobel)
+```
+
+## Analysis of Nobel Prize winners according to their gender and prize category
+
+It is always a matter of interest to figure out the gender ratio of the winners of any award and how that changes year wise and category wise since when it has been started awarded.
+Here first we will try to visualize the gender ratio of the total number of winners from 1901-2016.
+
+```{r,message=FALSE, warning=FALSE}
+
+data <- nobel %>%
+  filter(!Sex=="")%>%
+  group_by(Sex) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(per=`n`/sum(`n`)) %>% 
+  arrange(desc(Sex))
+data$label <- scales::percent(data$per)
+ggplot(data=data)+
+  geom_bar(aes(x="", y=per, fill=Sex), stat="identity", width = 1)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = cumsum(per) - per/2, label=label))+labs(title="Gender Percentage of the Nobel Prize Winners")
+kable(nobel %>% filter(!Sex=="")%>%group_by(Sex)%>%
+    count())
+```
+
+The above pie chart show that there is a huge imbalance in the gender ratio of the Nobel prize winners in total. But this chart represent the total data from the very beginning when Nobel has been started awarded.
+So we will try to focus on how is the trend of this proportion as the year passed on.
+
+```{r,message=FALSE, warning=FALSE}
+nobel %>%filter(!Sex=="")%>% group_by(Year,Sex)%>%summarize(c=n())%>%arrange(Year)%>%ggplot(aes(x=Year,c,col=Sex,group=Sex))+geom_line(size=1.5,alpha=0.5)+scale_x_continuous(breaks = seq(1900, 2020, 5))+theme_fivethirtyeight()+theme(axis.text.x = element_text(angle=90))+labs(title="Nobel Prizes Per Year by Male and Female", subtitle = "The trend of the total prizes won by both gender as the decades changed")+scale_color_manual(values=rainbow(n=3))
+```
+
+This line graph shows though there are imbalance but the situation started to change from the from the mid sixties of 20th century and eventually we can see a remarkable cahnge in the last two decades.
+
+Till now we were analysing the data irreseptive of the category of the Nobel Prizes, now we will analyse the data according to the category of the Nobel prizes. For doing doing so first we will see how many prizes have been won in each category irreseptive of the Nobel Laureates genders. 
+Here we can guess that the number of laureates will be minimum in Econimics as this category has been started in 1969 where the others are started in 1901.
+
+
+```{r,message=FALSE, warning=FALSE}
+ccount <-function(col,tab=nobel){
+    tab %>% 
+    filter(!is.na(col))%>%
+    group_by_(col)%>%
+    summarise(cnt=n())%>%
+    arrange(desc(cnt))
+}
+ccount(col="Category")%>%filter(!Category=="")%>%ggplot(aes(x=reorder(Category,-cnt),y=cnt,fill=Category)) + geom_bar(stat='identity',alpha=0.5) + theme_fivethirtyeight()+
+   theme(axis.text.x=element_text(angle=45,vjust=0.5),legend.position='none',plot.title = element_text(size=20)) +scale_fill_manual(values=rainbow(n=15))+labs(title="Prize by Category")+geom_text(aes(label=cnt), vjust=1)
+```
+
+This bar chart shows that our basic guess about the number of Nobel Prizes in Economics is correct and Medicine and Physics are the two leading fields based on the total number of winners.
+
+Now we will try to see whether the gender ration that we got before is almost same for every category or it varies category wise.
+
+```{r,message=FALSE, warning=FALSE}
+nobel %>% group_by(Category,Sex)%>%filter(!Sex=="")%>% summarize(c=n())%>%mutate(percent=c/sum(c))%>%ggplot(aes(Category,percent,fill=Sex))+geom_bar(stat="identity",alpha=0.5,position="Dodge")+scale_y_continuous(labels = percent_format())+theme_fivethirtyeight()+scale_fill_manual(values=rainbow(5))+labs(title="Nobel Prize Won by Category and Gender", subtitle = "Percentage of gender for each category")
+```
+
+We have previously observed that there is a huge imbalance of gender based on the total number of Nobel Laurates but here we can see the situation is a bit better for the categories like Peace, Literature and Medicine. 
+
+Now lets try to see how this proportion have been categorywise trended over the decades. For this here two different visualisation have been done separately for male Nobel Laaureates and female Nobel Laaureates.
+
+```{r,message=FALSE, warning=FALSE}
+prop_female_winners <- nobel %>% mutate(female_winner=ifelse(Sex=="Female",TRUE,FALSE),male_winner=ifelse(Sex=="Male",TRUE,FALSE),
+                                        decade=floor(Year/10)*10)%>%
+group_by(decade,Category)%>%summarize(fproportion=mean(female_winner,na.rm=TRUE),mproportion=mean(male_winner,na.rm=TRUE))
+
+prop_female_winners %>%ggplot(aes(decade,fproportion,color=Category,group=Category))+geom_line()+geom_point()+scale_y_continuous(labels=scales::percent,limits=c(0.0,1.0),expand=c(0,0))+scale_x_continuous(breaks = seq(1900, 2020, 10))+theme_fivethirtyeight()+labs(title="Category Wise Percentage Trends of Female Nobel Laureates", subtitle = "How the percentage of female winners have been changed based on the Nobel Prize category ober the decades")
+
+
+#grid.arrange(f,m,nrow=2,ncol=1)
+
+```
+In this line graph we can observe there are some noticable change in the percentage of female winners in the categories of Peace, Literature and Medicine. This is actually reason of the output of our last analysis about the category wise total gender ratio of the Nobel Prize winners. But most interestingly or we can say unfortunately this line graph show that the percentage trend is almost flat for the categories like Physics and Economics and for Chemistry it is actually decreasing.
+
+
+
+## Analysis of Nobel Prize winners according to their age at which they won the awards and prize category
+
+In the next part of analysis the focus has been given to age of the Nobel laureates when they won the prizes.
+
+First we will see how the average age of the Nobel winners trended over the decades irrespective of the Nobel Prize categories and who are some youngest most Nobel laureates
+
+```{r,message=FALSE, warning=FALSE}
+ggplot(nobel,aes(Year,Age,size=Age,col=cut(Age,5)))+geom_point(alpha=0.5)+geom_smooth(color="orange",se=FALSE)+scale_x_continuous(breaks = seq(1900, 2020, 10))+theme_fivethirtyeight()+
+   theme(axis.text.x=element_text(vjust=0.5),legend.position='none',plot.title = element_text(size=12)) +labs(title="Trend of average age of winning Nobel Prize", subtitle = "How is the trend of average age of winning a Nobel Prize over the decades")+
+  geom_text_repel(aes(label=ifelse(Age<=25,as.character(Full.Name),"")),size=5)
+```
+
+Here we can see an overall upwards trend and the overall average age of winning Nobel Prize is between 60 to 70. 
+
+Next we will try to see whetehr the same kind of trend follows for each category or the trend varies from category to category.
+
+```{r,message=FALSE, warning=FALSE}
+nobel %>%ggplot(aes(Year,Age,col=Category))+geom_point()+facet_wrap(~Category)+geom_smooth()+scale_color_manual(values=rainbow(n=6))+labs(title="Category wise rend of average age of winning Nobel Prize")
+```
+
+Here also we can observe the similar upwards trends of age for all the categories except Peace in which we can observe a downwards trend from the mid of 20th century.
+
+
+Now if we try to visualise the categorywise average age of the Nobel Laureates with a box plot, then we can get like the following
+
+```{r,message=FALSE, warning=FALSE}
+nobel %>% ggplot(aes(Category,Age,fill=Category))+geom_boxplot(alpha=0.5)+geom_jitter()+theme_fivethirtyeight()+scale_fill_manual(values=rainbow(8))+
+   theme(axis.text.x=element_text(vjust=0.5),legend.position='none',plot.title = element_text(size=12)) +labs(title="Age Distribution by Category")
+```
+
+The above box plot shows that average age at which the Nobel prize winners reveived the award seems always above 60 or near to 60. For "Peace" category we can observe exceptions with the 2 outliers which exist below 25. But most interestingly we can observe though there is a downward trend of age for Peace, still the average age is above 60 to be awarded with the Nobel Prize in peace.
+
+## Analysis of Nobel Prize winners according to their country of Birth
+
+In our first two types of analyses we have observed the trends of age and gender of the Nobel laurates. Now we will focus on their country of origin and try to figure out if there is any trend related to winning Nobel Prize with their country of origin. 
+To start the analysis let's visualise the countries of Nobel laureates in a treemap according to the number of laureates per country in a treemap.
+
+```{r,message=FALSE, warning=FALSE}
+nobel_birth <- nobel %>% 
+    filter( Sex != '')%>%
+    filter(!is.na(Birth.Country)) %>%
+    group_by(Birth.Country) %>%
+    rename(region = Birth.Country) %>%
+    summarise(value = n())
+library(treemap)
+data=data.frame(nobel_birth$region,nobel_birth$value)
+treemap(data,
+            index = "nobel_birth.region",
+            vSize="nobel_birth.value",
+            type="index",
+         title=sprintf("Country wise Nobel Prizes")
+        
+            )
+```
+
+This treemap shows that the Birth countries are not at all evenly distributed and there size ratio of the countries with larger boxes with the countries with smaller boxes are very high. This picture will be even more clearer if we extract the exact numbers of Nobel Prizes won by the laurates based on their birth country.
+So, we have tried to visualized a bar chart which shows the counts of Nobel Prizes won by the countries from where the laureates got at least 7 Nobel Prizes.
+
+
+```{r,message=FALSE, warning=FALSE}
+ccount(col="Birth.Country")%>%filter(!Birth.Country=="" & cnt>6 )%>%ggplot(aes(x=reorder(Birth.Country,cnt),y=cnt,fill=Birth.Country)) + geom_bar(stat='identity',alpha=0.5) + theme_fivethirtyeight()+
+   theme(axis.text.x=element_text(angle=45,vjust=0.5),legend.position='none',plot.title = element_text(size=12)) +scale_fill_manual(values=rainbow(n=25))+labs(title="Nobel Prizes by Country(with minimum 7 Nobel prizes)")+geom_text(aes(label=cnt))+coord_flip()
+```
+
+This bar chart show the interesting diversity of the number of Nobel Prizes won by the countries. For United States of America is leading the chart with 276 Nobel Prizes whereas Sweden is at 5th place with only 30 Nobel Prizes. 
+
+We can also observe here that the number of Nobel prizes per country does not really depends on the size or the population of the countries as Japan got 29 Nobels so far whereas the bigger countries (in size and population) like China or India got only 12 and 7 respectively. 
+
+This country wise analysis can be more relavant if we plot the number of Nobel prizes won by countries on a world map.
+
+```{r,message=FALSE, warning=FALSE}
+worldMap <- map_data('world')
+worldMap$region[worldMap$region=='USA'] <- 'United States of America'
+worldMap$region[worldMap$region=='UK'] <- 'United Kingdom'
+allCountries <- data.frame(region=unique(worldMap$region), stringsAsFactors = F)
+
+peace_country<- right_join(nobel_birth, allCountries)
+
+peace_country$value[is.na(peace_country$value)] <- 0
+
+#laureateBorn <- laureateBorn %>% arrange(region)
+
+ggplot(peace_country, aes(map_id = region)) + 
+    geom_map(aes(fill = log1p(value)), map = worldMap, color='black', size=0.25) + 
+    expand_limits(x = worldMap$long, y = worldMap$lat) +
+    theme_few()+
+    theme(legend.position = "bottom",
+         axis.ticks = element_blank(), 
+         axis.title = element_blank(), 
+         axis.text =  element_blank()) +
+    scale_fill_gradient2(low="blue",mid = "purple",
+                      high = "red" ,
+                        name="Number of Laureates")+
+    ggtitle("Nobel Laureates per Country of Birth")
+```
+
+We can clearly observe there are note only countries but also some particular region from where most of the Nobel Laureates are from.For example the heighest number of Nobel laureates are from United States of America and the central Europe whereas the African, South American and some Asian countries are lagging far behind.
+
+## Limitations and challenges faced in the analysis
+
+While analysing this dataset some of challenges have been faced while cleaning the data as many countries' name have been changed over the years. For example East and West Germany have been joined, Russian Empire have been devide. It was a debatable choice to select whether the birth country name's of the Nobel laureates should kept as it was when they won the prizes or should it be changed according to current world map. But finally in the whole analysis the country names have been kept as those are, only some cleanning have been done on spelling mismatch. This problem has effected the final analysis based on the world map upto an extend but overall the analysis has been without any other biasness.
+
+## References
+
+En.wikipedia.org. (2019). Nobel Prize. [online] Available at:       https://en.wikipedia.org/wiki/Nobel_Prize [Accessed 3 Jan. 2019].
+
+Kaggle.com. (2019). Nobel Laureates, 1901-Present. [online] Available at: https://www.kaggle.com/nobelfoundation/nobel-laureates [Accessed 3 Jan. 2019].
